@@ -1,7 +1,4 @@
 <?php
-// --- Controller for managing Customers from the Admin Panel (with Search) ---
-// This file handles all administrative actions for viewing, updating, and deleting customer data,
-// including eager loading their quotation history and providing search functionality.
 
 namespace App\Http\Controllers\Api\Admin;
 
@@ -13,18 +10,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
-    /**
-     * Display a paginated list of all customers, with search functionality.
-     */
     public function index(Request $request)
     {
-        // Start with a base query
         $query = Customer::query();
 
-        // If a 'search' parameter is present in the URL, filter the results.
         if ($request->has('search') && $request->input('search')) {
             $searchTerm = $request->input('search');
-            // This groups the WHERE clauses to correctly filter by name OR username
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('customer_name', 'like', "%{$searchTerm}%")
                   ->orWhere('customer_username', 'like', "%{$searchTerm}%");
@@ -36,20 +27,26 @@ class CustomerController extends Controller
         return CustomerResource::collection($customers);
     }
 
-    /**
-     * Display a single customer's details, including their quotation history.
-     */
-    public function show(Customer $customer)
+    public function show($id)
     {
+        $customer = Customer::find($id);
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
+        }
+
         $customer->load(['quotations.items']);
         return new CustomerResource($customer);
     }
 
-    /**
-     * Update a customer's details (by an admin).
-     */
-    public function update(Request $request, Customer $customer)
+    public function update(Request $request, $id)
     {
+        $customer = Customer::find($id);
+
+        if (!$customer) {
+            return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
+        }
+
         $validatedData = $request->validate([
             'marketing_name' => 'sometimes|nullable|string|max:255',
         ]);
@@ -62,18 +59,28 @@ class CustomerController extends Controller
         ]);
     }
 
-    /**
-     * Soft delete a customer account.
-     */
-    public function destroy(Customer $customer)
+    public function destroy($id)
     {
-        $customer->delete();
-        return response()->json(null, 204);
+        $customer = Customer::find($id);
+
+        if (!$customer) {
+            return response()->json([
+                'message' => "Customer dengan ID {$id} tidak ditemukan di database."
+            ], 404);
+        }
+
+        try {
+            $customer->delete();
+            return response()->json([
+                'message' => 'Customer berhasil dihapus.'
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Gagal menghapus data: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
-    /**
-     * Export all customers to a CSV file.
-     */
     public function exportCsv()
     {
         $headers = [
@@ -83,14 +90,12 @@ class CustomerController extends Controller
 
         $callback = function () {
             $file = fopen('php://output', 'w');
-            // CSV Header Row
             fputcsv($file, [
                 'ID', 'Nama', 'Email', 'Telepon', 'Username', 'Role',
                 'Nama Perusahaan', 'Jabatan Perusahaan', 'NPWP', 'Telepon Perusahaan',
                 'Nama Marketing', 'Terverifikasi', 'Tanggal Daftar'
             ]);
 
-            // Using cursor() is memory-efficient for large exports
             Customer::cursor()->each(function ($customer) use ($file) {
                 fputcsv($file, [
                     $customer->id,

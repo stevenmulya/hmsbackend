@@ -1,7 +1,4 @@
 <?php
-// --- Customer Authentication Controller ---
-// Handles registration, verification, login, and logout for customers.
-// Now includes professional file naming logic.
 
 namespace App\Http\Controllers\Api\Customer;
 
@@ -11,8 +8,9 @@ use App\Services\OtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str; // Import Str facade for slug helper
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
@@ -35,7 +33,7 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
-        $validator = \Validator::make($request->all(), [
+        $validator = Validator::make($request->all(), [
             'customer_name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:customers',
             'customer_phone' => 'required|string|unique:customers,customer_phone|min:10',
@@ -52,10 +50,9 @@ class AuthController extends Controller
         }
 
         $validatedData = $validator->validated();
+        $validatedData['customer_password'] = Hash::make($validatedData['customer_password']);
         $usernameSlug = Str::slug($validatedData['customer_username']);
 
-        // --- Professional File Handling: Custom Naming ---
-        // This ensures every uploaded file has a unique, predictable name and correct extension.
         if ($request->hasFile('personal_file_ktp')) {
             $extension = $request->file('personal_file_ktp')->getClientOriginalExtension();
             $fileName = "{$usernameSlug}_ktp.{$extension}";
@@ -85,11 +82,12 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'customer_phone' => 'required|string|exists:customers,customer_phone',
-            'otp' => 'required|digits:6'
+            'otp_code' => 'required|digits:6'
         ]);
+
         $customer = Customer::where('customer_phone', $data['customer_phone'])->first();
 
-        if (!$customer || $customer->verification_code !== $data['otp'] || now()->isAfter($customer->verification_code_expires_at)) {
+        if (!$customer || $customer->verification_code !== $data['otp_code'] || now()->isAfter($customer->verification_code_expires_at)) {
             return response()->json(['message' => 'Kode OTP tidak valid atau telah kedaluwarsa.'], 422);
         }
 

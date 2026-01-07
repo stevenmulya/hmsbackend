@@ -2,56 +2,46 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Twilio\Rest\Client;
-use Twilio\Http\CurlClient; // Import CurlClient bawaan Twilio
 
 class OtpService
 {
-    protected $client;
-    protected $fromNumber;
+    protected $token;
+    protected $endpoint = 'https://api.fonnte.com/send';
 
     public function __construct()
     {
-        $sid = env('TWILIO_SID');
-        $token = env('TWILIO_AUTH_TOKEN');
-        $this->fromNumber = env('TWILIO_WHATSAPP_FROM');
-
-        if ($sid && $token && $this->fromNumber) {
-            
-            // --- AWAL DARI PERBAIKAN ---
-
-            // 1. Opsi untuk menonaktifkan verifikasi SSL di cURL
-            $curlOptions = [
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false
-            ];
-
-            // 2. Buat HTTP client bawaan Twilio dengan opsi cURL kustom kita
-            $httpClient = new CurlClient($curlOptions);
-
-            // 3. Berikan HTTP client yang sudah dikonfigurasi ke Twilio
-            $this->client = new Client($sid, $token, null, null, $httpClient);
-
-            // --- AKHIR DARI PERBAIKAN ---
-        }
+        // Mengambil token dari .env
+        $this->token = env('FONNTE_TOKEN');
     }
 
     public function send(string $recipientPhoneNumber, string $otp): void
     {
-        if (!$this->client) {
-            Log::warning("Twilio credentials not set. OTP sending is simulated.");
-            Log::info("SIMULASI OTP: Kode untuk {$recipientPhoneNumber} adalah {$otp}");
+        // Pastikan token terbaca
+        if (!$this->token) {
+            Log::warning("Fonnte Token tidak ditemukan di .env. OTP disimulasikan: {$otp}");
             return;
         }
 
         try {
-            $this->client->messages->create("whatsapp:{$recipientPhoneNumber}", [
-                "from" => "whatsapp:{$this->fromNumber}",
-                "body" => "Kode verifikasi Anda adalah: {$otp}"
+            // withoutVerifying() digunakan untuk bypass error SSL cURL 60
+            $response = Http::withoutVerifying()->withHeaders([
+                'Authorization' => $this->token,
+            ])->post($this->endpoint, [
+                'target' => $recipientPhoneNumber,
+                'message' => "Kode verifikasi HMS Anda adalah: *{$otp}*.\n\nSimpan kode ini dengan baik dan jangan berikan kepada siapapun.",
+                'countryCode' => '62',
             ]);
+
+            $result = $response->json();
+
+            if (!$response->successful() || (isset($result['status']) && !$result['status'])) {
+                Log::error('Fonnte gagal mengirim pesan: ' . json_encode($result));
+            }
+
         } catch (\Exception $e) {
-            Log::error('Gagal mengirim OTP via Twilio: ' . $e->getMessage());
+            Log::error('Koneksi ke Fonnte bermasalah: ' . $e->getMessage());
         }
     }
 }
