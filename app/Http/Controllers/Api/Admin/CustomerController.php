@@ -6,6 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
@@ -18,7 +21,9 @@ class CustomerController extends Controller
             $searchTerm = $request->input('search');
             $query->where(function ($q) use ($searchTerm) {
                 $q->where('customer_name', 'like', "%{$searchTerm}%")
-                  ->orWhere('customer_username', 'like', "%{$searchTerm}%");
+                  ->orWhere('customer_username', 'like', "%{$searchTerm}%")
+                  ->orWhere('customer_phone', 'like', "%{$searchTerm}%")
+                  ->orWhere('email', 'like', "%{$searchTerm}%");
             });
         }
 
@@ -27,18 +32,54 @@ class CustomerController extends Controller
         return CustomerResource::collection($customers);
     }
 
-    public function show(Customer $customer)
+    public function show($username)
     {
-        $customer->load(['quotations.items']);
+        $customer = Customer::where('customer_username', $username)
+            ->with(['quotations.items'])
+            ->firstOrFail();
+
         return new CustomerResource($customer);
     }
 
-    public function update(Request $request, Customer $customer)
+    public function update(Request $request, $id)
     {
+        $customer = Customer::findOrFail($id);
+
+        if ($request->has('customer_phone')) {
+            $phone = preg_replace('/\D/', '', $request->customer_phone);
+            if (str_starts_with($phone, '0')) {
+                $phone = '62' . substr($phone, 1);
+            }
+            $request->merge(['customer_phone' => $phone]);
+        }
+
         $validatedData = $request->validate([
+            'customer_name' => 'sometimes|required|string|max:255',
+            'customer_phone' => [
+                'sometimes', 
+                'required', 
+                'numeric', 
+                Rule::unique('customers', 'customer_phone')->ignore($customer->id)
+            ],
+            'customer_email' => [
+                'sometimes', 
+                'nullable', 
+                'email', 
+                Rule::unique('customers', 'email')->ignore($customer->id)
+            ],
             'marketing_name' => 'sometimes|nullable|string|max:255',
+            'customer_address' => 'sometimes|nullable|string',
+            'company_name' => 'sometimes|nullable|string|max:255',
+            'company_role' => 'sometimes|nullable|string|max:255',
+            'company_id_npwp' => 'sometimes|nullable|string|max:255',
+            'company_phone' => 'sometimes|nullable|string|max:255',
         ]);
         
+        if (isset($validatedData['customer_email'])) {
+            $validatedData['email'] = $validatedData['customer_email'];
+            unset($validatedData['customer_email']);
+        }
+
         $customer->update($validatedData);
         
         return response()->json([
@@ -47,18 +88,29 @@ class CustomerController extends Controller
         ]);
     }
 
-    public function destroy(Customer $customer)
+    public function destroy($id)
     {
-        try {
+        return DB::transaction(function () use ($id) {
+            $customer = Customer::findOrFail($id);
+
+            $fileFields = ['personal_file_ktp', 'company_file_npwp', 'company_file_skt'];
+            foreach ($fileFields as $field) {
+                if ($customer->$field) {
+                    Storage::disk('public')->delete($customer->$field);
+                }
+            }
+
+            foreach ($customer->quotations as $quotation) {
+                $quotation->items()->delete();
+                $quotation->delete();
+            }
+
             $customer->delete();
+
             return response()->json([
-                'message' => 'Customer berhasil dihapus.'
+                'message' => 'Customer dan seluruh riwayat penawaran berhasil dihapus.'
             ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => 'Gagal menghapus data: ' . $e->getMessage()
-            ], 500);
-        }
+        });
     }
 
     public function exportCsv()
@@ -73,7 +125,7 @@ class CustomerController extends Controller
             fputcsv($file, [
                 'ID', 'Nama', 'Email', 'Telepon', 'Username', 'Role',
                 'Nama Perusahaan', 'Jabatan Perusahaan', 'NPWP', 'Telepon Perusahaan',
-                'Nama Marketing', 'Terverifikasi', 'Tanggal Daftar'
+                'Nama Marketing', 'Tanggal Daftar'
             ]);
 
             Customer::cursor()->each(function ($customer) use ($file) {
@@ -89,7 +141,6 @@ class CustomerController extends Controller
                     $customer->company_id_npwp,
                     $customer->company_phone,
                     $customer->marketing_name,
-                    $customer->phone_verified_at ? 'Yes' : 'No',
                     $customer->created_at->format('Y-m-d H:i:s'),
                 ]);
             });
