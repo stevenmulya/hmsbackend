@@ -27,26 +27,14 @@ class CustomerController extends Controller
         return CustomerResource::collection($customers);
     }
 
-    public function show($id)
+    public function show(Customer $customer)
     {
-        $customer = Customer::find($id);
-
-        if (!$customer) {
-            return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
-        }
-
         $customer->load(['quotations.items']);
         return new CustomerResource($customer);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, Customer $customer)
     {
-        $customer = Customer::find($id);
-
-        if (!$customer) {
-            return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
-        }
-
         $validatedData = $request->validate([
             'marketing_name' => 'sometimes|nullable|string|max:255',
         ]);
@@ -59,16 +47,8 @@ class CustomerController extends Controller
         ]);
     }
 
-    public function destroy($id)
+    public function destroy(Customer $customer)
     {
-        $customer = Customer::find($id);
-
-        if (!$customer) {
-            return response()->json([
-                'message' => "Customer dengan ID {$id} tidak ditemukan di database."
-            ], 404);
-        }
-
         try {
             $customer->delete();
             return response()->json([

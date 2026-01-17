@@ -34,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'update']);
+    Route::post('/send-otp-update-phone', [ProfileController::class, 'sendOtpUpdatePhone']);
+    Route::post('/verify-otp-update-phone', [ProfileController::class, 'verifyOtpUpdatePhone']);
     Route::post('/quotations', [QuotationController::class, 'store']);
     Route::get('/my-quotations', [QuotationController::class, 'index']);
 });

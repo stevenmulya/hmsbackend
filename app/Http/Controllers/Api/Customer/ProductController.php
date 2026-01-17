@@ -78,10 +78,6 @@ class ProductController extends Controller
         return ProductResource::collection($products);
     }
 
-    /**
-     * Display a single VISIBLE product by its slug.
-     */
-    // --- PERBAIKAN: Menghapus kata 'new' yang salah ---
     public function show(Product $product) 
     {
         if (!$product->product_visibility) {
