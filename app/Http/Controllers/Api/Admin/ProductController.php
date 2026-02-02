@@ -47,6 +47,24 @@ class ProductController extends Controller
         }
     }
 
+    public function toggleSinglePrice(Request $request, $id)
+    {
+        try {
+            $product = Product::findOrFail($id);
+            $status = $request->boolean('show_price');
+            
+            $product->update(['show_price' => $status]);
+
+            return response()->json([
+                'message' => 'Status harga berhasil diperbarui.',
+                'status' => $status,
+                'data' => new ProductResource($product)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Gagal memperbarui status.'], 500);
+        }
+    }
+
     public function toggleAllPrices(Request $request)
     {
         try {
@@ -58,7 +76,7 @@ class ProductController extends Controller
                 'status' => $status
             ]);
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Gagal memperbarui status.'], 500);
+            return response()->json(['message' => 'Gagal memperbarui status global.'], 500);
         }
     }
 
@@ -109,7 +127,8 @@ class ProductController extends Controller
         
         try {
             $product = DB::transaction(function () use ($request, $product, $validatedData) {
-                $productData = collect($validatedData)->except(['product_mainimage', 'product_imagelist', 'existing_imagelist_paths', 'remove_main_image'])->toArray();
+                // Pastikan _method tidak ikut masuk ke database
+                $productData = collect($validatedData)->except(['product_mainimage', 'product_imagelist', 'existing_imagelist_paths', 'remove_main_image', '_method'])->toArray();
 
                 if ($request->has('show_price')) {
                     $productData['show_price'] = $request->boolean('show_price');

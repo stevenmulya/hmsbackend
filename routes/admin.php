@@ -30,6 +30,7 @@ Route::middleware(['auth:admin', 'abilities:admin'])->group(function () {
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('sub-categories', SubCategoryController::class);
     
+    Route::patch('/products/{id}/toggle-price', [ProductController::class, 'toggleSinglePrice']);
     Route::get('/products/export-csv', [ProductController::class, 'exportCsv']);
     Route::patch('/products/toggle-all-prices', [ProductController::class, 'toggleAllPrices']);
     Route::apiResource('products', ProductController::class)->parameters([
