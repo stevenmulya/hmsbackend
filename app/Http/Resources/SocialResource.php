@@ -4,7 +4,6 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class SocialResource extends JsonResource
 {
@@ -15,9 +14,10 @@ class SocialResource extends JsonResource
             'name' => $this->name,
             'platform' => $this->platform,
             'url' => $this->url,
-            'is_visible' => $this->is_visible,
+            'is_visible' => (bool) $this->is_visible,
             'order' => $this->order,
-            'logo_url' => $this->logo_path ? Storage::url($this->logo_path) : null,
+            // PERBAIKAN: Menggunakan url('storage/' . ...) agar link lengkap
+            'logo_url' => $this->logo_path ? url('storage/' . $this->logo_path) : null,
         ];
     }
 }
