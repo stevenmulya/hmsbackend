@@ -1,8 +1,10 @@
 <?php
+
 namespace App\Http\Resources;
+
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
+
 class PartnerResource extends JsonResource
 {
     public function toArray(Request $request): array
@@ -12,9 +14,9 @@ class PartnerResource extends JsonResource
             'name' => $this->name,
             'link' => $this->link,
             'type' => $this->type,
-            'is_visible' => $this->is_visible,
+            'is_visible' => (bool) $this->is_visible,
             'order' => $this->order,
-            'logo_url' => $this->logo_path ? Storage::url($this->logo_path) : null,
+            'logo_url' => $this->logo_path ? url('storage/' . $this->logo_path) : null,
         ];
     }
 }
